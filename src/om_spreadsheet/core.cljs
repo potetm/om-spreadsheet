@@ -81,6 +81,31 @@
           :on-change (partial update-cell-value! owner id)
           :value (display-value db id)}]))))
 
+(defn table-header-row [_db _owner]
+  (reify
+    om/IRenderState
+    (render-state [this {:keys [col-count]}]
+      (html
+        [:thead
+         [:tr
+          [:th]
+          (for [i (range col-count)]
+            [:th (char (+ 97 i))])]]))))
+
+(defn table-rows [db owner]
+  (reify
+    om/IRenderState
+    (render-state [this {:keys [col-count]}]
+      (html
+        [:tbody
+         (for [[i ids] (->> (repo/get-sorted-cells db)
+                            (partition col-count)
+                            (map-indexed vector))]
+           [:tr
+            [:th (inc i)]
+            (for [id ids]
+              [:td (om/build cell db {:init-state {:id id}})])])]))))
+
 (defn spreadsheet-app [db _owner]
   (reify
     om/IRender
@@ -90,18 +115,8 @@
           [:div
            [:h1 (repo/get-header-text db)]
            [:table
-            [:tr
-             [:th]
-             (for [i (range col-count)]
-               [:th (char (+ 97 i))])]
-            (for [[i ids] (map-indexed vector
-                                   (partition col-count
-                                              (repo/get-sorted-cells db)))]
-              [:tr
-               [:th (inc i)]
-               (for [id ids]
-                 [:td
-                  (om/build cell db {:init-state {:id id}})])])]])))))
+            (om/build table-header-row db {:init-state {:col-count col-count}})
+            (om/build table-rows db {:init-state {:col-count col-count}})]])))))
 
 (om/root
   spreadsheet-app conn
