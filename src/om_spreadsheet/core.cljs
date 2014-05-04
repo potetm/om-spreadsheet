@@ -1,6 +1,7 @@
 (ns om-spreadsheet.core
   (:require-macros [cljs.core.async.macros :refer [go alt!]])
   (:require [cljs.core.async :refer [put! <! >! chan timeout]]
+            [clojure.string :as str]
             [datascript :as d]
             [figwheel.client :as fw :include-macros true]
             [om.core :as om :include-macros true]
@@ -28,6 +29,16 @@
   (d/transact! (get-conn owner)
                [[:db/add id :cell/value (-> e .-target .-value)]]))
 
+(defn eval-function [value]
+  (-> (str/replace-first value "=" "")))
+
+(defn display-value [db id]
+  (let [value (:cell/value (d/entity db id))]
+    (cond
+      (= \= (first value)) (eval-function value)
+      :else
+      value)))
+
 (defn cell [db owner]
   (reify
     om/IRenderState
@@ -35,18 +46,18 @@
       (html
         [:input {:type "text"
                  :on-change (partial update-cell-value! owner id)
-                 :value (:cell/value (d/entity db id))}]))))
+                 :value (display-value db id)}]))))
 
-(defn spreadsheet-app [db owner]
+(defn spreadsheet-app [db _owner]
   (reify
     om/IRender
     (render [_]
       (html
         [:div
          [:h1 (repo/get-header-text db)]
-         [:h2 (:cell/value (d/entity db 2))]
-         (om/build cell db {:init-state {:id 2}})
-         (om/build cell db {:init-state {:id 2}})]))))
+         [:div
+          (for [id (repo/get-sorted-cells db)]
+            (om/build cell db {:init-state {:id id}}))]]))))
 
 (om/root
   spreadsheet-app conn

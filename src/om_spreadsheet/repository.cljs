@@ -9,12 +9,11 @@
         [?i :header/text ?t]]
       db)))
 
-(defn first-id-for-attr [db attr]
-  (ffirst
-    (d/q
-      '[:find ?i
-        :in $ ?attr
-        :where
-        [?i ?attr]]
-      db
-      attr)))
+(defn get-sorted-cells [db]
+  (->> (d/q
+         '[:find ?i ?l
+           :where
+           [?i :cell/location ?l]]
+         db)
+       (sort-by second)
+       (map first)))
