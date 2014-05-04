@@ -15,7 +15,12 @@
            :where
            [?i :cell/location ?l]]
          db)
-       (sort-by second)
+       (sort-by
+         (fn [[_id loc]]
+           (let [s (name loc)
+                 row (re-find #"[0-9]+" s)
+                 column (re-find #"[a-z]+" s)]
+             [row column])))
        (map first)))
 
 (defn get-cell-by-location [db location]

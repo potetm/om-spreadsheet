@@ -33,11 +33,18 @@
   (d/transact! (get-conn owner)
                [[:db/add id :cell/state state]]))
 
+(declare calculate-value)
+
 (defn get-loc-str-value-tuple [db loc-str]
-  (let [cell-loc (keyword (str/replace-first loc-str "$" ""))]
+  (let [cell-loc (keyword (str/replace-first loc-str "$" ""))
+        cell (d/entity db (repo/get-cell-by-location db cell-loc))]
     [loc-str
-     (:cell/value
-      (d/entity db (repo/get-cell-by-location db cell-loc)))]))
+     (calculate-value db (:cell/value cell))]))
+
+(defn eval-expr [v]
+  (if (re-matches #".*[-+*/].*" v)
+    (js/eval v)
+    v))
 
 (defn eval-function [db value]
   (let [value (str/replace-first value "=" "")]
@@ -48,28 +55,31 @@
            (fn [input [loc-str v]]
              (str/replace input loc-str v))
            value)
-         ;; da da da DANGEROUS
-         js/eval)))
+         eval-expr)))
+
+(defn calculate-value [db value]
+  (if (= \= (first value))
+    (eval-function db value)
+    value))
 
 (defn display-value [db id]
   (let [cell (d/entity db id)
         value (:cell/value cell)]
-    (cond
-      (= :focused (:cell/state cell)) value
-      (= \= (first value)) (eval-function db value)
-      :else
-      value)))
+    (if (= :focused (:cell/state cell))
+      value
+      (calculate-value db value))))
 
 (defn cell [db owner]
   (reify
     om/IRenderState
     (render-state [this {:keys [id]}]
       (html
-        [:input {:type "text"
-                 :on-focus #(set-cell-state! owner id :focused)
-                 :on-blur #(set-cell-state! owner id :unfocused)
-                 :on-change (partial update-cell-value! owner id)
-                 :value (display-value db id)}]))))
+        [:input
+         {:type "text"
+          :on-focus #(set-cell-state! owner id :focused)
+          :on-blur #(set-cell-state! owner id :unfocused)
+          :on-change (partial update-cell-value! owner id)
+          :value (display-value db id)}]))))
 
 (defn spreadsheet-app [db _owner]
   (reify
@@ -78,9 +88,12 @@
       (html
         [:div
          [:h1 (repo/get-header-text db)]
-         [:div
-          (for [id (repo/get-sorted-cells db)]
-            (om/build cell db {:init-state {:id id}}))]]))))
+         [:table
+          (for [ids (partition 5 (repo/get-sorted-cells db))]
+            [:tr
+             (for [id ids]
+               [:td
+                (om/build cell db {:init-state {:id id}})])])]]))))
 
 (om/root
   spreadsheet-app conn
