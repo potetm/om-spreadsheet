@@ -11,9 +11,9 @@
 
 (enable-console-print!)
 
-(def conn (d/create-conn state/schema))
-(def initialize
-  (d/transact! conn state/initial-facts))
+(fw/defonce conn (d/create-conn state/schema))
+(fw/defonce initialize
+            (d/transact! conn state/initial-facts))
 
 ;; prevent cursor-ification
 (extend-type d/DB
@@ -29,13 +29,34 @@
   (d/transact! (get-conn owner)
                [[:db/add id :cell/value (-> e .-target .-value)]]))
 
-(defn eval-function [value]
-  (-> (str/replace-first value "=" "")))
+(defn set-cell-state! [owner id state]
+  (d/transact! (get-conn owner)
+               [[:db/add id :cell/state state]]))
+
+(defn get-loc-str-value-tuple [db loc-str]
+  (let [cell-loc (keyword (str/replace-first loc-str "$" ""))]
+    [loc-str
+     (:cell/value
+      (d/entity db (repo/get-cell-by-location db cell-loc)))]))
+
+(defn eval-function [db value]
+  (let [value (str/replace-first value "=" "")]
+    (->> value
+         (re-seq #"\$[A-Za-z]+[0-9]+")
+         (map (partial get-loc-str-value-tuple db))
+         (reduce
+           (fn [input [loc-str v]]
+             (str/replace input loc-str v))
+           value)
+         ;; da da da DANGEROUS
+         js/eval)))
 
 (defn display-value [db id]
-  (let [value (:cell/value (d/entity db id))]
+  (let [cell (d/entity db id)
+        value (:cell/value cell)]
     (cond
-      (= \= (first value)) (eval-function value)
+      (= :focused (:cell/state cell)) value
+      (= \= (first value)) (eval-function db value)
       :else
       value)))
 
@@ -45,6 +66,8 @@
     (render-state [this {:keys [id]}]
       (html
         [:input {:type "text"
+                 :on-focus #(set-cell-state! owner id :focused)
+                 :on-blur #(set-cell-state! owner id :unfocused)
                  :on-change (partial update-cell-value! owner id)
                  :value (display-value db id)}]))))
 

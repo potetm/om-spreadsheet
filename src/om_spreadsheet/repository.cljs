@@ -17,3 +17,13 @@
          db)
        (sort-by second)
        (map first)))
+
+(defn get-cell-by-location [db location]
+  (ffirst
+    (d/q
+      '[:find ?i
+        :in $ ?l
+        :where
+        [?i :cell/location ?l]]
+      db
+      location)))

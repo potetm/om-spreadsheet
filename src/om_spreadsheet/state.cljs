@@ -10,7 +10,8 @@
             :let [c (char i)]]
         (mapcat
           identity
-          (for [j (range 5)
+          (for [j (range 1 6)
                 :let [id (- -100 (+ i (* i j)))]]
             [[:db/add id :cell/value ""]
-             [:db/add id :cell/location (keyword (str c j))]]))))))
+             [:db/add id :cell/location (keyword (str c j))]
+             [:db/add id :cell/state :unfocused]]))))))
