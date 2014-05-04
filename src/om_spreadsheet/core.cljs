@@ -6,6 +6,7 @@
             [figwheel.client :as fw :include-macros true]
             [om.core :as om :include-macros true]
             [om-spreadsheet.state :as state]
+            [om-spreadsheet.persistence :as persist]
             [om-spreadsheet.repository :as repo]
             [sablono.core :as s :include-macros :refer [html]]))
 
@@ -21,17 +22,6 @@
   (-to-cursor
     ([this _] this)
     ([this _ _] this)))
-
-(defn get-conn [owner]
-  (om/get-shared owner :conn))
-
-(defn update-cell-value! [owner id e]
-  (d/transact! (get-conn owner)
-               [[:db/add id :cell/value (-> e .-target .-value)]]))
-
-(defn set-cell-state! [owner id state]
-  (d/transact! (get-conn owner)
-               [[:db/add id :cell/state state]]))
 
 (declare calculate-value)
 
@@ -69,16 +59,40 @@
       value
       (calculate-value db value))))
 
+(defn get-column-row-tuple [db id]
+  (->> (d/entity db id)
+       :cell/location
+       name
+       (re-seq #"[a-z]+|[0-9]+")))
+
+(defn decrement-row [db id]
+  (let [[c r] (get-column-row-tuple db id)]
+    (keyword (str c (dec (js/parseInt r))))))
+
+(defn increment-row [db id]
+  (let [[c r] (get-column-row-tuple db id)]
+    (keyword (str c (inc (js/parseInt r))))))
+
+(defn handle-cell-key-press [db owner id e]
+  (when (= 13 (.-keyCode e))
+    (if (.-shiftKey e)
+      (repo/set-focus-to-cell-at-location! db owner (decrement-row db id))
+      (repo/set-focus-to-cell-at-location! db owner (increment-row db id)))))
+
 (defn cell [db owner]
   (reify
+    om/IDidUpdate
+    (did-update [this _ {:keys [id]}]
+      (when (= id (persist/get-focused-cell db))
+        (.focus (om/get-node owner))))
     om/IRenderState
     (render-state [this {:keys [id]}]
       (html
         [:input
          {:type "text"
-          :on-focus #(set-cell-state! owner id :focused)
-          :on-blur #(set-cell-state! owner id :unfocused)
-          :on-change (partial update-cell-value! owner id)
+          :on-focus #(repo/set-cell-state! owner id :focused)
+          :on-key-press (partial handle-cell-key-press db owner id)
+          :on-change #(repo/update-cell-value! owner id (-> % .-target .-value))
           :value (display-value db id)}]))))
 
 (defn table-header-row [_db _owner]
@@ -92,13 +106,13 @@
           (for [i (range col-count)]
             [:th (char (+ 97 i))])]]))))
 
-(defn table-rows [db owner]
+(defn table-rows [db _owner]
   (reify
     om/IRenderState
     (render-state [this {:keys [col-count]}]
       (html
         [:tbody
-         (for [[i ids] (->> (repo/get-sorted-cells db)
+         (for [[i ids] (->> (persist/get-sorted-cells db)
                             (partition col-count)
                             (map-indexed vector))]
            [:tr
@@ -110,10 +124,10 @@
   (reify
     om/IRender
     (render [_]
-      (let [col-count (repo/get-column-count db)]
+      (let [col-count (persist/get-column-count db)]
         (html
           [:div
-           [:h1 (repo/get-header-text db)]
+           [:h1 (persist/get-header-text db)]
            [:table
             (om/build table-header-row db {:init-state {:col-count col-count}})
             (om/build table-rows db {:init-state {:col-count col-count}})]])))))

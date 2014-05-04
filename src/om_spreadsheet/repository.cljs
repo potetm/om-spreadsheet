@@ -1,50 +1,21 @@
 (ns om-spreadsheet.repository
-  (:require [datascript :as d]))
+  (:require [datascript :as d]
+            [om.core :as om]
+            [om-spreadsheet.persistence :as persist]))
 
-(defn get-header-text [db]
-  (ffirst
-    (d/q
-      '[:find ?t
-        :where
-        [?i :header/text ?t]]
-      db)))
+(defn get-conn [owner]
+  (om/get-shared owner :conn))
 
-(defn get-sorted-cells [db]
-  (->> (d/q
-         '[:find ?i ?l
-           :where
-           [?i :cell/location ?l]]
-         db)
-       (sort-by
-         (fn [[_id loc]]
-           (let [s (name loc)
-                 row (re-find #"[0-9]+" s)
-                 column (re-find #"[a-z]+" s)]
-             [row column])))
-       (map first)))
+(defn update-cell-value! [owner id value]
+  (d/transact! (get-conn owner)
+               [[:db/add id :cell/value value]]))
 
-(defn get-cell-by-location [db location]
-  (ffirst
-    (d/q
-      '[:find ?i
-        :in $ ?l
-        :where
-        [?i :cell/location ?l]]
-      db
-      location)))
+(defn set-cell-state! [owner id state]
+  (d/transact! (get-conn owner)
+               (persist/get-cells-state-update-facts id state)))
 
-(defn get-row-count [db]
-  (ffirst
-    (d/q
-      '[:find ?r
-        :where
-        [?i :table/rows ?r]]
-      db)))
-
-(defn get-column-count [db]
-  (ffirst
-    (d/q
-      '[:find ?c
-        :where
-        [?i :table/columns ?c]]
-      db)))
+(defn set-focus-to-cell-at-location! [db owner new-location]
+  (let [new-id (persist/get-cell-by-location db new-location)]
+    (when new-id
+      (d/transact! (get-conn owner)
+                   (persist/get-cells-state-update-facts new-id :focused)))))
