@@ -32,3 +32,19 @@
         [?i :cell/location ?l]]
       db
       location)))
+
+(defn get-row-count [db]
+  (ffirst
+    (d/q
+      '[:find ?r
+        :where
+        [?i :table/rows ?r]]
+      db)))
+
+(defn get-column-count [db]
+  (ffirst
+    (d/q
+      '[:find ?c
+        :where
+        [?i :table/columns ?c]]
+      db)))

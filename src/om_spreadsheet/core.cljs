@@ -43,7 +43,7 @@
 
 (defn eval-expr [v]
   (if (re-matches #".*[-+*/].*" v)
-    (js/eval v)
+    (js/eval v) ;; da da da DANGEROUS
     v))
 
 (defn eval-function [db value]
@@ -85,15 +85,23 @@
   (reify
     om/IRender
     (render [_]
-      (html
-        [:div
-         [:h1 (repo/get-header-text db)]
-         [:table
-          (for [ids (partition 5 (repo/get-sorted-cells db))]
+      (let [col-count (repo/get-column-count db)]
+        (html
+          [:div
+           [:h1 (repo/get-header-text db)]
+           [:table
             [:tr
-             (for [id ids]
-               [:td
-                (om/build cell db {:init-state {:id id}})])])]]))))
+             [:th]
+             (for [i (range col-count)]
+               [:th (char (+ 97 i))])]
+            (for [[i ids] (map-indexed vector
+                                   (partition col-count
+                                              (repo/get-sorted-cells db)))]
+              [:tr
+               [:th (inc i)]
+               (for [id ids]
+                 [:td
+                  (om/build cell db {:init-state {:id id}})])])]])))))
 
 (om/root
   spreadsheet-app conn
