@@ -27,7 +27,7 @@
 
 (defn get-loc-str-value-tuple [db loc-str]
   (let [cell-loc (keyword (str/replace-first loc-str "$" ""))
-        cell (d/entity db (repo/get-cell-by-location db cell-loc))]
+        cell (d/entity db (persist/get-cell-by-location db cell-loc))]
     [loc-str
      (calculate-value db (:cell/value cell))]))
 
@@ -55,7 +55,7 @@
 (defn display-value [db id]
   (let [cell (d/entity db id)
         value (:cell/value cell)]
-    (if (= :focused (:cell/state cell))
+    (if (:cell/focused? cell)
       value
       (calculate-value db value))))
 
@@ -90,31 +90,31 @@
       (html
         [:input
          {:type "text"
-          :on-focus #(repo/set-cell-state! owner id :focused)
-          :on-blur #(repo/set-cell-state! owner id :unfocused)
+          :on-focus #(repo/set-cell-focused! owner id true)
+          :on-blur #(repo/set-cell-focused! owner id false)
           :on-key-press (partial handle-cell-key-press db owner id)
           :on-change #(repo/update-cell-value! owner id (-> % .-target .-value))
           :value (display-value db id)}]))))
 
-(defn table-header-row [_db _owner]
+(defn table-header-row [db _owner]
   (reify
-    om/IRenderState
-    (render-state [this {:keys [col-count]}]
+    om/IRender
+    (render [_]
       (html
         [:thead
          [:tr
           [:th]
-          (for [i (range col-count)]
+          (for [i (range (persist/get-column-count db))]
             [:th (char (+ 97 i))])]]))))
 
 (defn table-rows [db _owner]
   (reify
-    om/IRenderState
-    (render-state [this {:keys [col-count]}]
+    om/IRender
+    (render [_]
       (html
         [:tbody
          (for [[i ids] (->> (persist/get-sorted-cells db)
-                            (partition col-count)
+                            (partition (persist/get-column-count db))
                             (map-indexed vector))]
            [:tr
             [:th (inc i)]
@@ -125,13 +125,12 @@
   (reify
     om/IRender
     (render [_]
-      (let [col-count (persist/get-column-count db)]
-        (html
-          [:div
-           [:h1 (persist/get-header-text db)]
-           [:table
-            (om/build table-header-row db {:init-state {:col-count col-count}})
-            (om/build table-rows db {:init-state {:col-count col-count}})]])))))
+      (html
+        [:div
+         [:h1 (persist/get-header-text db)]
+         [:table
+          (om/build table-header-row db)
+          (om/build table-rows db)]]))))
 
 (om/root
   spreadsheet-app conn

@@ -1,8 +1,8 @@
 (ns om-spreadsheet.state)
 
 (def schema {})
-(def ^:private rows 5)
-(def ^:private columns 5)
+(def ^:private rows 6)
+(def ^:private columns 6)
 (def initial-facts
   (concat
     [[:db/add -1 :header/text "Hello, World!"]]
@@ -18,4 +18,4 @@
                 :let [id (- -100 (+ i (* i j)))]]
             [[:db/add id :cell/value ""]
              [:db/add id :cell/location (keyword (str c j))]
-             [:db/add id :cell/state :unfocused]]))))))
+             [:db/add id :cell/focused? false]]))))))
