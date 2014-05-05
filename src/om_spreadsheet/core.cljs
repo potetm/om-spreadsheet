@@ -91,6 +91,7 @@
         [:input
          {:type "text"
           :on-focus #(repo/set-cell-state! owner id :focused)
+          :on-blur #(repo/set-cell-state! owner id :unfocused)
           :on-key-press (partial handle-cell-key-press db owner id)
           :on-change #(repo/update-cell-value! owner id (-> % .-target .-value))
           :value (display-value db id)}]))))
