@@ -52,19 +52,21 @@
 (defn get-focused-cell [db]
   (ffirst
     (d/q
-      '[:find ?i
+      '[:find ?c
         :where
-        [?i :cell/focused? true]]
+        [?i :focused-cell ?c]]
       db)))
 
-(defn get-cell-focused-facts [db id]
-  (let [current-focused (get-focused-cell db)]
-    (concat
-      (when (and current-focused (not= current-focused id))
-        [[:db/add current-focused :cell/focused? false]])
-      [[:db/add id :cell/focused? true]])))
+(defn get-focused-attr [db]
+  (ffirst
+    (d/q
+      '[:find ?i
+        :where
+        [?i :focused-cell]]
+      db)))
 
-(defn get-cells-focus-update-facts [id focused?]
-  (if focused?
-    [[:db.fn/call get-cell-focused-facts id]]
-    [[:db/add id :cell/focused? false]]))
+(defn get-cells-focus-update-facts [db id focused?]
+  (let [focused-attr-id (if-let [id (get-focused-attr db)] id -1)]
+    (if focused?
+      [[:db/add focused-attr-id :focused-cell id]]
+      [[:db/retract focused-attr-id :focused-cell id]])))

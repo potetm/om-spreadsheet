@@ -83,14 +83,15 @@
     om/IDidUpdate
     (did-update [this _ {:keys [id]}]
       (when (= id (domain/get-focused-cell db))
+        (println "focused-cell=" id)
         (.focus (om/get-node owner))))
     om/IRenderState
     (render-state [this {:keys [id]}]
       (html
         [:input
          {:type "text"
-          :on-focus #(update/set-cell-focused! id true)
-          :on-blur #(update/set-cell-focused! id false)
+          :on-focus #(update/set-cell-focused! db id true)
+          :on-blur #(update/set-cell-focused! db id false)
           :on-key-press (partial handle-cell-key-press db id)
           :on-change #(update/update-cell-value! id (-> % .-target .-value))
           :value (display-value db id)}]))))

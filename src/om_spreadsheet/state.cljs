@@ -17,5 +17,4 @@
           (for [j (range 1 (inc columns))
                 :let [id (- -100 (+ i (* i j)))]]
             [[:db/add id :cell/value ""]
-             [:db/add id :cell/location (keyword (str c j))]
-             [:db/add id :cell/focused? false]]))))))
+             [:db/add id :cell/location (keyword (str c j))]]))))))

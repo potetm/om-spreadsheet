@@ -10,10 +10,10 @@
 (defn update-cell-value! [id value]
   (d/transact! conn [[:db/add id :cell/value value]]))
 
-(defn set-cell-focused! [id focused?]
-  (d/transact! conn (domain/get-cells-focus-update-facts id focused?)))
+(defn set-cell-focused! [db id focused?]
+  (d/transact! conn (domain/get-cells-focus-update-facts db id focused?)))
 
 (defn set-focus-to-cell-at-location! [db new-location]
   (let [new-id (domain/get-cell-by-location db new-location)]
     (when new-id
-      (d/transact! conn (domain/get-cells-focus-update-facts new-id true)))))
+      (d/transact! conn (domain/get-cells-focus-update-facts db new-id true)))))
