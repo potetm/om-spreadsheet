@@ -6,15 +6,14 @@
             [figwheel.client :as fw :include-macros true]
             [om.core :as om :include-macros true]
             [om-spreadsheet.state :as state]
-            [om-spreadsheet.persistence :as persist]
-            [om-spreadsheet.repository :as repo]
+            [om-spreadsheet.domain :as domain]
+            [om-spreadsheet.update :as update]
             [sablono.core :as s :include-macros :refer [html]]))
 
 (enable-console-print!)
 
-(fw/defonce conn (d/create-conn state/schema))
 (fw/defonce initialize
-            (d/transact! conn state/initial-facts))
+            (d/transact! update/conn state/initial-facts))
 
 ;; prevent cursor-ification
 (extend-type d/DB
@@ -27,7 +26,7 @@
 
 (defn get-loc-str-value-tuple [db loc-str]
   (let [cell-loc (keyword (str/replace-first loc-str "$" ""))
-        cell (d/entity db (persist/get-cell-by-location db cell-loc))]
+        cell (d/entity db (domain/get-cell-by-location db cell-loc))]
     [loc-str
      (calculate-value db (:cell/value cell))]))
 
@@ -73,27 +72,27 @@
   (let [[c r] (get-column-row-tuple db id)]
     (keyword (str c (inc (js/parseInt r))))))
 
-(defn handle-cell-key-press [db owner id e]
+(defn handle-cell-key-press [db id e]
   (when (= 13 (.-keyCode e))
     (if (.-shiftKey e)
-      (repo/set-focus-to-cell-at-location! db owner (decrement-row db id))
-      (repo/set-focus-to-cell-at-location! db owner (increment-row db id)))))
+      (update/set-focus-to-cell-at-location! db (decrement-row db id))
+      (update/set-focus-to-cell-at-location! db (increment-row db id)))))
 
 (defn cell [db owner]
   (reify
     om/IDidUpdate
     (did-update [this _ {:keys [id]}]
-      (when (= id (persist/get-focused-cell db))
+      (when (= id (domain/get-focused-cell db))
         (.focus (om/get-node owner))))
     om/IRenderState
     (render-state [this {:keys [id]}]
       (html
         [:input
          {:type "text"
-          :on-focus #(repo/set-cell-focused! owner id true)
-          :on-blur #(repo/set-cell-focused! owner id false)
-          :on-key-press (partial handle-cell-key-press db owner id)
-          :on-change #(repo/update-cell-value! owner id (-> % .-target .-value))
+          :on-focus #(update/set-cell-focused! id true)
+          :on-blur #(update/set-cell-focused! id false)
+          :on-key-press (partial handle-cell-key-press db id)
+          :on-change #(update/update-cell-value! id (-> % .-target .-value))
           :value (display-value db id)}]))))
 
 (defn table-header-row [db _owner]
@@ -104,7 +103,7 @@
         [:thead
          [:tr
           [:th]
-          (for [i (range (persist/get-column-count db))]
+          (for [i (range (domain/get-column-count db))]
             [:th (char (+ 97 i))])]]))))
 
 (defn table-rows [db _owner]
@@ -113,8 +112,8 @@
     (render [_]
       (html
         [:tbody
-         (for [[i ids] (->> (persist/get-sorted-cells db)
-                            (partition (persist/get-column-count db))
+         (for [[i ids] (->> (domain/get-sorted-cells db)
+                            (partition (domain/get-column-count db))
                             (map-indexed vector))]
            [:tr
             [:th (inc i)]
@@ -127,14 +126,13 @@
     (render [_]
       (html
         [:div
-         [:h1 (persist/get-header-text db)]
+         [:h1 (domain/get-header-text db)]
          [:table
           (om/build table-header-row db)
           (om/build table-rows db)]]))))
 
 (om/root
-  spreadsheet-app conn
-  {:shared {:conn conn}
-   :target (js/document.getElementById "app")})
+  spreadsheet-app update/conn
+  {:target (js/document.getElementById "app")})
 
 (fw/watch-and-reload)

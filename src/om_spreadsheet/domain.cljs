@@ -1,4 +1,4 @@
-(ns om-spreadsheet.persistence
+(ns om-spreadsheet.domain
   (:require [datascript :as d]))
 
 (defn get-header-text [db]
